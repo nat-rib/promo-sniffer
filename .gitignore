@@ -1,0 +1,27 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_ed25519*
+id_rsa*
+
+# Local data, databases and generated artifacts
+data/
+backups/
+*.sqlite
+*.sqlite3
+*.db
+*.log
+.coverage
+coverage/
+dist/
+build/
+.tmp/
+.cache/
+
+# Editors and operating systems
+.DS_Store
+.idea/
+.vscode/
