@@ -90,3 +90,24 @@ A conditional coupon price must never be compared as if every user could obtain 
 - [ ] Pix, coupon and shipping conditions are not collapsed into a single unconditional price.
 - [ ] Shopee API eligibility and credentials are confirmed by the owner.
 - [ ] No source is marked enabled until access, terms, adapter tests and product matching are validated.
+
+
+## Run the probe from the Hetzner VPS through GitHub Actions
+
+The repository now contains a manual workflow at `.github/workflows/vps-marketplace-probe.yml`. It connects a GitHub-hosted runner to the tailnet, copies the probe to `/tmp` on the VPS and executes it there as the configured SSH user. This is a diagnostic run only: it does not deploy the application, change Compose services, touch persistent app data or restart containers.
+
+Configure these repository Actions secrets before running it:
+
+| Secret | Value |
+|---|---|
+| `TS_AUTHKEY` | Tailscale auth key for a short-lived GitHub Actions runner, tagged/authorized by your tailnet ACL |
+| `VPS_TAILSCALE_IP` | Tailscale IPv4 address of the Hetzner VPS |
+| `VPS_SSH_USER` | VPS SSH account (expected: `deploy`) |
+| `VPS_SSH_PRIVATE_KEY` | Dedicated private key for GitHub Actions; its public key must be in the VPS user's `~/.ssh/authorized_keys` |
+| `VPS_SSH_KNOWN_HOSTS` | Verified known_hosts entry for the VPS Tailscale address |
+
+Do not reuse the VPS-to-GitHub read-only deploy key for this direction. Generate a separate key pair for GitHub Actions and add only its public key to the VPS. Do not commit any key or Tailscale auth key.
+
+After adding secrets, open **Actions → VPS marketplace probe → Run workflow**, select branch `feat/marketplace-collection-spike`, and keep the default Onimusha query. The output is the response observed from the VPS network, with no browser cookies or logged-in marketplace session.
+
+The workflow has not been executed yet because the required repository secrets and VPS-side SSH authorization must be configured by the owner. A successful run proves outbound API access from the VPS; it does not by itself approve scheduled production collection or establish Shopee access.
