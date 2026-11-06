@@ -15,13 +15,15 @@ Telegram is the first interface. WhatsApp is a possible future channel, not an M
 ## Confirmed MVP decisions
 
 - Stores and promotion sources are registered manually by the owner.
-- Supported source categories: Telegram groups/channels, promotion websites and store websites.
+- Initial store candidates: Gamerhut, Amazon Brasil, Shopee, Mercado Livre, Netshoes, Centauro, Dafiti and Adidas Brasil.
+- Telegram groups/channels will be added when the owner provides their links.
+- A promotion-aggregator website is still to be selected.
 - LLM interpretation is optional; deterministic commands and guided conversations must work without it.
 - Initial geography/currency: Brazil / BRL.
 - Personal use, restricted to authorized Telegram user IDs.
 - Python modular monolith and SQLite for the initial single-instance deployment.
 
-Registering a source does not mean it is already integrated. A source without a validated adapter must be shown as pending/unsupported, not silently monitored.
+Registering a source does not mean it is already integrated. A source without a validated adapter must be shown as pending/unsupported, not silently monitored. See [source catalog](docs/SOURCE_CATALOG.md).
 
 ## Important Telegram limitation
 
@@ -30,6 +32,7 @@ The Telegram Bot API can receive new messages from chats/channels where the bot 
 ## Documentation
 
 - [Product brief](docs/PROJECT_BRIEF.md)
+- [Source catalog](docs/SOURCE_CATALOG.md)
 - [Architecture proposal](docs/ARCHITECTURE.md)
 - [Implementation plan and PR sequence](docs/IMPLEMENTATION_PLAN.md)
 - [Contribution workflow](CONTRIBUTING.md)
@@ -38,8 +41,10 @@ The Telegram Bot API can receive new messages from chats/channels where the bot 
 
 - [x] Repository initialized
 - [x] Product scope and architecture documented
-- [x] Initial implementation plan defined
-- [ ] Source feasibility spike (select first store, promotion site and Telegram chat)
+- [x] Initial store candidates selected
+- [ ] Validate canonical domains, access and collection methods
+- [ ] Select a promotion-aggregator website
+- [ ] Receive Telegram group/channel links
 - [ ] Application skeleton and CI
 - [ ] Persistence and watch management
 - [ ] Telegram bot
