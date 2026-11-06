@@ -2,135 +2,129 @@
 
 ## Goals
 
-Build a low-maintenance personal service that turns chat instructions into durable price watches, checks multiple sources, records evidence-backed observations and sends actionable alerts. Start small enough for a 1 vCPU / 4 GB VPS.
+Build a low-maintenance personal service that turns chat instructions into durable price watches, checks manually configured sources, records evidence-backed observations and sends actionable alerts. Keep the first deployment small enough for a 1 vCPU / 4 GB VPS.
 
 ## High-level design
 
-```text
 Telegram user
-    |
-    v
-Telegram Bot Adapter ----> Conversation / Command Service
-                                  |
-                                  v
-                            Watch Service
-                                  |
-                 +----------------+----------------+
-                 |                |                |
-                 v                v                v
-             Watch DB       Scheduler        Alert Rules
-                 |                |                |
-                 |                v                |
-                 |         Collection Runner       |
-                 |                |                |
-                 |        +-------+-------+        |
-                 |        |       |       |        |
-                 |        v       v       v        |
-                 |      Store   Deal    Telegram   |
-                 |     adapters feeds   adapters  |
-                 |        |       |       |        |
-                 +--------+-------+-------+--------+
-                                  |
-                                  v
-                         Price Observations
-                                  |
-                                  v
-                           Alert Dispatcher
-                                  |
-                                  v
-                            Telegram user
-```
+  -> Telegram Bot Adapter
+  -> Conversation / Command Handler <-> Optional LLM Parser
+  -> validated intent
+  -> Watch and Source Services
+  -> Persistence + Scheduler
+  -> Collection Runner
+  -> Store adapters / Promotion-site adapters / Telegram adapters
+  -> Price Observations
+  -> Alert Rules
+  -> Telegram Dispatcher
+  -> Telegram user
+
+## Architectural decisions
+
+- One Python modular-monolith application, one deployable container initially.
+- Telegram Bot API with long polling; no public inbound port required.
+- SQLite on persistent storage for the initial single-instance deployment.
+- Deterministic commands and guided prompts are the baseline interaction path.
+- LLM parsing is an optional adapter. The application validates its output exactly like any other untrusted input; no LLM provider is required to boot or operate the service.
+- Stores and promotion sources are registered manually. Registration does not imply an adapter exists: unsupported entries stay visible as configured-but-not-integrated.
+- Collection adapters are isolated by source type and tested with saved fixtures.
 
 ## Suggested modules
 
-- `bot/`: Telegram transport, authorization, commands, callback buttons and message formatting. Keep Telegram SDK types out of domain logic.
-- `application/`: use cases for create/list/update/pause/delete watches, ingest observations and dispatch alerts.
-- `domain/`: watch rules, product identity, offer, price observation and alert decisions.
-- `sources/`: common adapter contract plus store, feed, website and Telegram-chat implementations.
-- `collector/`: scheduler, polling, retry/backoff, concurrency limits and source health.
-- `persistence/`: repositories and migrations.
-- `config/`: validated environment configuration.
-- `tests/`: unit tests, adapter contract tests and fixture-based parser tests.
+- bot/: Telegram transport, authorization, commands, callback buttons and message formatting.
+- application/: use cases for watches, source registry, ingestion, alert dispatch and user confirmation.
+- domain/: product identity, watch rules, source state, offer, price observation and alert decisions.
+- sources/: adapter contract plus store website, promotion website/feed and Telegram chat implementations.
+- collector/: scheduler, polling, retries/backoff, concurrency limits and source health.
+- interpretation/: deterministic command parser and optional LLM provider interface.
+- persistence/: repositories, SQLite schema and migrations.
+- config/: validated environment configuration.
+- tests/: unit, adapter-contract and fixture-based parser tests.
 
-A modular monolith is preferred over microservices: one deployable container initially, with clear internal boundaries.
+Keep Telegram SDK types and LLM provider payloads out of domain logic.
 
 ## Core data model
 
-- `products`: canonical product identity and normalized attributes (title, platform, edition, region, identifiers).
-- `watches`: user query, canonical product, target price, currency, condition flags, status and cooldown.
-- `sources`: source type, name, configuration reference, enabled state, polling policy and health metadata.
-- `offers`: source listing identity, seller, URL, availability and product match confidence.
-- `price_observations`: offer, observed price, currency, shipping/coupon context, timestamp and evidence metadata.
-- `alerts`: triggering observation, rule type, delivery state and deduplication key.
-- `ingestion_checkpoints`: last processed message/item/cursor per source.
+- products: canonical product identity and normalized attributes.
+- watches: product, user query, target price, currency, filters, status and cooldown.
+- sources: manually registered source name/type, URL or chat identifier, enabled state, adapter key, polling policy, access/terms review and health metadata.
+- offers: source listing identity, seller, URL, availability and product-match confidence.
+- price_observations: offer, price, currency, shipping/coupon context, timestamp, provenance and extraction metadata.
+- alerts: triggering observation, rule type, delivery state and deduplication key.
+- ingestion_checkpoints: last processed item/message/cursor per source.
 
-Store secrets in environment variables or mounted secret files, never in source configuration or database exports intended for Git.
+Secrets are stored in environment variables or mounted secret files, never in Git or ordinary source-registry fields.
 
 ## Conversation behavior
 
-The bot should support natural-language requests, but never silently create a materially ambiguous watch. Parse a message into a structured proposal and ask the user to confirm it.
+The bot must support useful operation without an LLM. Initial interaction can use explicit commands and guided questions.
 
-Example:
+Suggested commands: /help, /watch, /list, /stores, /sources, /pause, /resume, /remove and /status.
 
-User: "Monitora GTA 6 para PS5 abaixo de R$ 250."
+Example guided flow:
+1. User starts /watch.
+2. Bot asks for product and platform/edition.
+3. Bot asks for target price and whether to alert on a new observed minimum.
+4. Bot displays a summary and asks for confirmation.
+5. Application validates and persists the watch.
 
-Bot: "Vou monitorar Grand Theft Auto VI para PS5, mídia física ou digital ainda não especificada, e avisar abaixo de R$ 250. Está correto?"
+Natural-language messages may be parsed by deterministic patterns first and an optional LLM second. Any uncertain result becomes a confirmation/clarification step. LLM output is never trusted as executable configuration.
 
-After confirmation, persist the watch and reply with its identifier. Also support deterministic commands such as `/list`, `/watch`, `/pause`, `/resume`, `/remove` and `/help`.
+Only configured Telegram user IDs may access the personal MVP.
 
-Only allow configured Telegram user IDs in the personal MVP. Unknown users receive no access to watch data.
+## Manual source registry and adapters
 
-## Collection and source adapters
+A source entry has a lifecycle:
+1. Registered manually with name, URL/chat and type.
+2. Validated for access, terms and collection method.
+3. Linked to a supported adapter.
+4. Enabled and assigned a polling interval/rate limit.
+5. Monitored for health and parser failures.
 
-Every adapter should expose a small contract: identify source, fetch candidate offers/messages, parse product and price, provide canonical URL/evidence, and report source-specific errors. Keep parsing separate from orchestration.
+An entry without a working adapter is marked unsupported or pending integration. Do not silently treat it as active.
 
-- Prefer official APIs and feeds.
-- Use HTML collection only where allowed, with conservative request rates, caching and clear user-agent identification.
-- Keep source-specific rate limits and retry/backoff.
-- Store parser version and raw evidence reference to help debug extraction changes.
-- Never interpret a coupon-dependent, membership-only, installment or shipping-exclusive price as a normal final price without labeling it.
-
-Product matching should consider platform, edition, condition, seller and identifiers. Low-confidence matches should be excluded from automatic alerts or sent for user confirmation.
+Adapter contract should expose source identity, fetch operation, parsing of candidate offers/messages, canonical evidence URL, timestamps and source-specific errors. Prefer official APIs/feeds; use website collection only where allowed. Apply per-source rate limits, caching and backoff.
 
 ## Telegram: interface vs. promotion ingestion
 
 These are separate capabilities:
-
 1. The user-facing bot receives private chat updates and sends alerts.
-2. A Telegram source adapter collects new posts only from chats/channels where the bot has been added and has sufficient visibility. In groups, privacy mode/admin status affects which messages are visible.
-3. Bot API updates are not an archive API and are retained for at most 24 hours. Do not design historical backfill around Bot API polling.
-4. Historical channel backfill can be explored with MTProto and an explicitly authorized user account that is already a member. This is deferred because it needs a user session credential, careful secret handling, access checks and rate-limit controls. It must not scrape private communities without permission.
+2. A Telegram source adapter collects new posts only from chats/channels where the bot has been added and has sufficient visibility. Group privacy mode/admin status affects message visibility.
+3. Bot API is not an archive API; updates are retained for at most 24 hours.
+4. Historical backfill may be explored later with MTProto and an explicitly authorized account that already has access. It is deferred due to account-session security, privacy and rate-limit complexity.
 
-For MVP, support new posts from a short list of configured public channels that explicitly allow the bot to join, plus manually supplied historical URLs or trusted price-history sources where available.
+For MVP, collect new posts from explicitly configured chats where bot access is permitted. Historical backfill is not an MVP promise.
 
 ## Price history semantics
 
-A historical low is only meaningful relative to a defined dataset. Every UI/alert should distinguish:
+Every observation records provenance and timestamp. Distinguish:
 - Current offer price.
-- Lowest price Promo Sniffer has observed since tracking began.
-- Imported historical price, including its source and original date.
-- External site's advertised historical minimum, including its coverage/methodology when known.
+- Lowest price observed by Promo Sniffer since tracking began.
+- Imported historical price, with source and original date.
+- External site's advertised historical minimum, with its coverage/methodology when known.
 
-Do not state "lowest ever" when only a partial observation window exists. Show the period and source coverage used to calculate a record.
+Never state "lowest ever" when only a partial observation window exists. Display the period and source coverage behind any record.
 
 ## Initial deployment shape
 
-- One application container running bot polling and scheduled collection tasks.
-- SQLite database on the persistent host mount for a single instance.
-- No Redis, message broker, Kubernetes or separate frontend in the first version.
-- Health/status command reports bot connectivity, database status and last successful source checks.
-- Docker healthcheck should validate process/application health, not merely that the container is running.
-- Back up the database using SQLite's online backup mechanism; do not rely on copying a live SQLite file with a generic tar archive.
-- Keep host port exposure disabled unless a future webhook or admin endpoint actually needs it. Telegram long polling avoids requiring a public inbound endpoint.
+- One application container for Telegram polling and scheduled collection.
+- SQLite database on persistent host mount.
+- No Redis, message broker, Kubernetes or separate frontend initially.
+- Health/status reports bot connectivity, database status and last successful source checks.
+- Use SQLite online backup; do not copy a live database file with a generic tar operation.
+- No public host port for long polling.
+- Bounded collection concurrency and per-source timeouts to protect the small VPS.
 
 ## Risks and mitigations
 
 | Risk | Mitigation |
 |---|---|
-| Store markup changes | Fixture tests, parser versioning, source health and failure alerts |
+| Store markup changes | Fixture tests, parser versioning and source health |
+| Unsupported registered source | Explicit pending/unsupported state |
 | Wrong product match | Platform/edition/condition attributes and confidence threshold |
 | Misleading historical-low claim | Provenance, coverage dates and conservative wording |
-| Telegram bot cannot read old posts | Separate MTProto backfill milestone |
+| Telegram bot cannot read old posts | Historical MTProto work deferred |
 | Source blocks/rate limits | Prefer APIs/feeds, throttle, cache and back off |
-| Duplicate alerts | Stable offer/rule deduplication key and cooldown |
-| VPS resource pressure | Single process/container initially, bounded concurrency and resource monitoring |
+| Duplicate alerts | Stable deduplication key and cooldown |
+| LLM output is wrong/unavailable | Deterministic fallback, schema validation and user confirmation |
+| VPS resource pressure | Single container, bounded concurrency and resource monitoring |
