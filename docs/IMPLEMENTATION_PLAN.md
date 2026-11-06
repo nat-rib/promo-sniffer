@@ -6,7 +6,10 @@ This plan turns the confirmed product decisions into small, reviewable increment
 
 - Telegram Bot API as the only MVP user interface.
 - Stores are registered manually; no preloaded store catalog.
+- Initial candidate stores: Gamerhut, Amazon Brasil, Shopee, Mercado Livre, Netshoes, Centauro, Dafiti and Adidas Brasil. See SOURCE_CATALOG.md.
 - Source categories: Telegram groups/channels, promotion websites and store websites.
+- Telegram groups/channels will be provided later; no Telegram source is selected yet.
+- No promotion-aggregator website has been selected yet.
 - Optional LLM interpretation. Core workflows must work without an LLM.
 - Brazil / BRL, single authorized owner, no public web UI.
 - Historical Telegram backfill, WhatsApp and multi-user support are deferred.
@@ -27,16 +30,36 @@ This plan turns the confirmed product decisions into small, reviewable increment
 
 ### Phase 0 — Source feasibility spike
 
-Goal: prove that the first sources can be accessed and parsed before building broad automation.
+Goal: validate access and extraction for the owner-selected candidates before implementing broad automation.
 
-- Define the source registry fields and source lifecycle.
-- Select a small initial test set manually: at least one store website, one promotion website and one Telegram channel/group.
-- For each candidate, record URL/chat identifier, access method, terms/access review, expected polling interval and sample evidence.
-- Build fixture examples for representative product/price messages/pages.
-- Verify that the Telegram bot can see new posts only after it is added with sufficient permissions.
-- Mark sources without a viable adapter as pending, not active.
+**Selected store candidates**
 
-Acceptance: each source selected for the MVP has an explicit access method, a fixture and a documented rate-limit policy; unsupported sources are clearly identified.
+Games and electronics:
+- Gamerhut
+- Amazon Brasil
+- Shopee
+- Mercado Livre
+
+Clothing and sneakers:
+- Netshoes
+- Centauro
+- Dafiti
+- Adidas Brasil
+
+**Still to be supplied/selected**
+- Telegram promotion groups/channels: owner will send links later.
+- At least one promotion-aggregator website: not selected yet.
+
+**Validation work**
+- Confirm canonical domain and store identity for each candidate (especially the exact Gamerhut domain).
+- Review terms/access and identify official API, feed or permitted collection method.
+- Record representative product URLs and fixture examples.
+- Determine how seller, new/used condition, shipping, coupons, membership and installment prices are represented.
+- Set conservative polling intervals, rate limits, caching and backoff.
+- Assign each source a status: candidate, validated, adapter implemented, enabled or unsupported.
+- Do not mark a source as actively monitored until its adapter is implemented and tested.
+
+Acceptance: at least one store candidate has a documented viable collection method and fixture; the remaining candidates have explicit validation status; no source is silently represented as monitored when it is not.
 
 ### Phase 1 — Application skeleton and persistence
 
@@ -70,7 +93,8 @@ Acceptance: authorized owner can create and manage a watch and source without an
 Goal: collect real offers from a narrow, validated source set.
 
 - Implement common adapter protocol and normalized offer schema.
-- Implement one store adapter and one promotion website adapter selected in Phase 0.
+- Select the first store from the validated candidates, then one promotion website when chosen.
+- Implement only the first validated adapters; keep other registered candidates pending.
 - Store source evidence URL, seller, product match confidence, price, shipping/coupon context, availability and observed timestamp.
 - Add fixture-based parser tests and adapter contract tests.
 - Add per-source timeout, rate limit, retry/backoff and health status.
@@ -81,7 +105,7 @@ Acceptance: fixture tests cover normal, malformed and changed markup cases; coll
 
 Goal: ingest new promotion posts from manually configured Telegram chats.
 
-- Add the bot to selected chats/channels with required visibility.
+- Add the bot to selected chats/channels with required visibility after the owner supplies them.
 - Persist message identifiers and ingestion checkpoints.
 - Parse new posts into candidate offers and route them through the same product-matching/evidence pipeline.
 - Handle edits/deletions where supported and deduplicate repeated posts.
