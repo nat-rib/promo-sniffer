@@ -12,9 +12,9 @@ Example: "Monitora GTA 6 para PS5. Me avisa se ficar abaixo de R$ 250 ou se apar
 
 - Stores: manual registration by the owner; no broad preloaded store catalog.
 - Promotion sources: Telegram groups/channels, promotion websites and store websites.
-- Initial candidate stores are listed in [SOURCE_CATALOG.md](SOURCE_CATALOG.md).
-- Telegram promotion groups/channels will be supplied by the owner later; none are selected yet.
-- No promotion-aggregator website has been selected yet; this remains an open Phase 0 item.
+- Initial candidate stores, promotion communities and Telegram channels are listed in [SOURCE_CATALOG.md](SOURCE_CATALOG.md).
+- Gamerhut canonical URL supplied by owner: https://www.gamerhut.com.br/.
+- First Telegram channel candidate: Ofertas Nintendo BR (@ofertasnintendobr). Access/permission is not yet confirmed.
 - Interpretation: LLM is optional. Deterministic commands, guided prompts and schema validation must support the complete MVP without an LLM.
 - Initial geography/currency: Brazil / BRL.
 - Messaging: Telegram Bot API first; WhatsApp deferred.
@@ -50,23 +50,13 @@ The owner manually registers each store or promotion source. A registry entry sh
 
 Registration is separate from integration availability: a source can be registered but remain not yet supported until a compatible adapter is implemented and tested. The bot must communicate this clearly instead of implying it is monitoring a source it cannot collect from.
 
-## Initial candidate store groups
+## Initial candidate sources
 
-### Games and electronics
+- **Stores:** Gamerhut, Amazon Brasil, Shopee, Mercado Livre, Netshoes, Centauro, Dafiti and Adidas Brasil.
+- **Promotion websites:** Pelando, Promobit and Gatry are the initial shortlist.
+- **Telegram:** Ofertas Nintendo BR (@ofertasnintendobr) is the first channel candidate; owner permission and bot visibility remain unconfirmed.
 
-- Gamerhut
-- Amazon Brasil
-- Shopee
-- Mercado Livre
-
-### Clothing and sneakers
-
-- Netshoes
-- Centauro
-- Dafiti
-- Adidas Brasil
-
-These are owner-selected candidates, not yet validated integrations. Confirm canonical domains, access method, terms, product-page patterns, seller/condition handling and rate limits during Phase 0. Amazon, Shopee and Mercado Livre are marketplaces: seller identity, new/used condition, shipping and coupon requirements must be captured separately from the platform name.
+See [SOURCE_CATALOG.md](SOURCE_CATALOG.md) for rationale and per-source validation notes.
 
 ## Source policy and Telegram limitations
 
@@ -75,6 +65,7 @@ These are owner-selected candidates, not yet validated integrations. Confirm can
 - Do not assume all stores or Telegram communities are accessible or permit automated collection.
 - The Telegram Bot API can collect new messages from channels where the bot is a member. In groups, privacy mode/admin status affects visibility.
 - Bot API is not an arbitrary history-export API; updates are retained for no more than 24 hours.
+- The Ofertas Nintendo channel description directs deal suggestions to ofertasnintendo.com.br and lists content restrictions. Promo Sniffer must not submit messages or suggestions there. Treat the channel as read-only candidate input, only if its owner permits bot access.
 - Historical Telegram backfill may later be evaluated through MTProto with an explicitly authorized user account that has access. This is outside the MVP and requires separate security, privacy and rate-limit review. Never ask users to provide their Telegram password or login code to the bot.
 
 ## Product identity and monitoring rules
