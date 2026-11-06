@@ -6,10 +6,9 @@ This plan turns the confirmed product decisions into small, reviewable increment
 
 - Telegram Bot API as the only MVP user interface.
 - Stores are registered manually; no preloaded store catalog.
-- Initial candidate stores: Gamerhut, Amazon Brasil, Shopee, Mercado Livre, Netshoes, Centauro, Dafiti and Adidas Brasil. See SOURCE_CATALOG.md.
-- Source categories: Telegram groups/channels, promotion websites and store websites.
-- Telegram groups/channels will be provided later; no Telegram source is selected yet.
-- No promotion-aggregator website has been selected yet.
+- Initial store candidates: Gamerhut, Amazon Brasil, Shopee, Mercado Livre, Netshoes, Centauro, Dafiti and Adidas Brasil. See SOURCE_CATALOG.md.
+- Promotion-site shortlist: Pelando, Promobit and Gatry.
+- First Telegram channel candidate: Ofertas Nintendo BR (@ofertasnintendobr); bot access/owner permission remains pending.
 - Optional LLM interpretation. Core workflows must work without an LLM.
 - Brazil / BRL, single authorized owner, no public web UI.
 - Historical Telegram backfill, WhatsApp and multi-user support are deferred.
@@ -33,33 +32,32 @@ This plan turns the confirmed product decisions into small, reviewable increment
 Goal: validate access and extraction for the owner-selected candidates before implementing broad automation.
 
 **Selected store candidates**
+- Games/electronics: Gamerhut, Amazon Brasil, Shopee and Mercado Livre.
+- Clothing/sneakers: Netshoes, Centauro, Dafiti and Adidas Brasil.
 
-Games and electronics:
-- Gamerhut
-- Amazon Brasil
-- Shopee
-- Mercado Livre
+**Selected promotion website shortlist**
+- Pelando — broad user-submitted community offers and voting.
+- Promobit — moderated/curated offers, coupons and community.
+- Gatry — active community deal threads and comments.
 
-Clothing and sneakers:
-- Netshoes
-- Centauro
-- Dafiti
-- Adidas Brasil
+These are the first three to evaluate, not an assertion that they expose official APIs or permit scraping. Verify each site's terms, public endpoints/feeds, robots policy, rate limits and stable offer links before collection.
 
-**Still to be supplied/selected**
-- Telegram promotion groups/channels: owner will send links later.
-- At least one promotion-aggregator website: not selected yet.
+**Telegram candidate**
+- Ofertas Nintendo BR (@ofertasnintendobr), public channel URL https://t.me/ofertasnintendobr.
+- Channel description restricts submissions and directs suggestions to ofertasnintendo.com.br. Do not submit posts or messages.
+- Confirm whether the channel owner permits adding the bot with read visibility. Until then, treat it as reference-only; do not assume the bot can read it.
+- Bot API collection is for new messages after access is granted; historical backfill remains out of scope.
 
 **Validation work**
-- Confirm canonical domain and store identity for each candidate (especially the exact Gamerhut domain).
-- Review terms/access and identify official API, feed or permitted collection method.
-- Record representative product URLs and fixture examples.
+- Confirm canonical domains and product-page patterns for stores.
+- Review access/terms and identify official API, feed or permitted collection method.
+- Capture representative product URLs and fixture examples.
 - Determine how seller, new/used condition, shipping, coupons, membership and installment prices are represented.
-- Set conservative polling intervals, rate limits, caching and backoff.
+- Define conservative polling intervals, rate limits, caching and backoff.
 - Assign each source a status: candidate, validated, adapter implemented, enabled or unsupported.
 - Do not mark a source as actively monitored until its adapter is implemented and tested.
 
-Acceptance: at least one store candidate has a documented viable collection method and fixture; the remaining candidates have explicit validation status; no source is silently represented as monitored when it is not.
+Acceptance: at least one store candidate has a documented viable collection method and fixture; each selected promotion site and Telegram candidate has an explicit access/permission status; no source is represented as monitored when it is not.
 
 ### Phase 1 — Application skeleton and persistence
 
@@ -93,8 +91,9 @@ Acceptance: authorized owner can create and manage a watch and source without an
 Goal: collect real offers from a narrow, validated source set.
 
 - Implement common adapter protocol and normalized offer schema.
-- Select the first store from the validated candidates, then one promotion website when chosen.
-- Implement only the first validated adapters; keep other registered candidates pending.
+- Choose first store adapter after Phase 0 validation; Gamerhut is the first candidate to assess.
+- Evaluate Pelando, Promobit and Gatry for permitted collection. Implement only a source with a stable, documented access method.
+- Keep remaining registered candidates pending until validated.
 - Store source evidence URL, seller, product match confidence, price, shipping/coupon context, availability and observed timestamp.
 - Add fixture-based parser tests and adapter contract tests.
 - Add per-source timeout, rate limit, retry/backoff and health status.
@@ -105,7 +104,8 @@ Acceptance: fixture tests cover normal, malformed and changed markup cases; coll
 
 Goal: ingest new promotion posts from manually configured Telegram chats.
 
-- Add the bot to selected chats/channels with required visibility after the owner supplies them.
+- Add the bot to selected chats/channels only after owner permission and required visibility are confirmed.
+- Start with Ofertas Nintendo BR only if channel access is explicitly granted.
 - Persist message identifiers and ingestion checkpoints.
 - Parse new posts into candidate offers and route them through the same product-matching/evidence pipeline.
 - Handle edits/deletions where supported and deduplicate repeated posts.
@@ -153,21 +153,21 @@ Only after the core MVP is stable:
 
 ## Proposed pull-request sequence
 
-1. PR 1 — feat: add application skeleton and quality gates: package layout, settings, logging, tests, lint/type checks and CI.
-2. PR 2 — feat: add persistence models and repositories: SQLAlchemy, Alembic, SQLite schema and repository tests.
-3. PR 3 — feat: add Telegram bot and guided watch flows: authorization, commands, deterministic conversation and source registry management.
-4. PR 4 — feat: add source adapter framework and first collectors: common adapter contract plus the first validated store and deal-site adapters.
-5. PR 5 — feat: ingest configured Telegram promotion chats: new-message ingestion and checkpoints.
-6. PR 6 — feat: schedule price checks and send alerts: scheduler, history, target and historical-low rules, deduplication.
-7. PR 7 — ci: add container publishing and VPS deployment: Docker, GHCR, deploy, backup/restore and rollback.
+1. PR 1 — feat: add application skeleton and quality gates.
+2. PR 2 — feat: add persistence models and repositories.
+3. PR 3 — feat: add Telegram bot and guided watch flows.
+4. PR 4 — feat: add source adapter framework and first validated collectors.
+5. PR 5 — feat: ingest configured Telegram promotion chats.
+6. PR 6 — feat: schedule price checks and send alerts.
+7. PR 7 — ci: add container publishing and VPS deployment.
 
 Each PR should be independently testable and update the docs when a decision changes. Avoid implementing all source adapters at once.
 
 ## First implementation PR exit criteria
 
-Before coding the bot, the first PR should establish:
+Before coding the bot, establish:
 - A clean local developer setup and documented commands.
 - CI that runs tests and lint on PRs and pushes to develop.
 - Configuration validation with no real secrets required for tests.
 - A minimal app entry point and graceful shutdown.
-- A clear module structure that does not couple Telegram/LLM SDKs to the domain.
+- Clear module boundaries that do not couple Telegram/LLM SDKs to the domain.
