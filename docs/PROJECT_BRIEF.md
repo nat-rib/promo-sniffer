@@ -12,6 +12,9 @@ Example: "Monitora GTA 6 para PS5. Me avisa se ficar abaixo de R$ 250 ou se apar
 
 - Stores: manual registration by the owner; no broad preloaded store catalog.
 - Promotion sources: Telegram groups/channels, promotion websites and store websites.
+- Initial candidate stores are listed in [SOURCE_CATALOG.md](SOURCE_CATALOG.md).
+- Telegram promotion groups/channels will be supplied by the owner later; none are selected yet.
+- No promotion-aggregator website has been selected yet; this remains an open Phase 0 item.
 - Interpretation: LLM is optional. Deterministic commands, guided prompts and schema validation must support the complete MVP without an LLM.
 - Initial geography/currency: Brazil / BRL.
 - Messaging: Telegram Bot API first; WhatsApp deferred.
@@ -46,6 +49,24 @@ The owner manually registers each store or promotion source. A registry entry sh
 - Terms/access review status and operational notes.
 
 Registration is separate from integration availability: a source can be registered but remain not yet supported until a compatible adapter is implemented and tested. The bot must communicate this clearly instead of implying it is monitoring a source it cannot collect from.
+
+## Initial candidate store groups
+
+### Games and electronics
+
+- Gamerhut
+- Amazon Brasil
+- Shopee
+- Mercado Livre
+
+### Clothing and sneakers
+
+- Netshoes
+- Centauro
+- Dafiti
+- Adidas Brasil
+
+These are owner-selected candidates, not yet validated integrations. Confirm canonical domains, access method, terms, product-page patterns, seller/condition handling and rate limits during Phase 0. Amazon, Shopee and Mercado Livre are marketplaces: seller identity, new/used condition, shipping and coupon requirements must be captured separately from the platform name.
 
 ## Source policy and Telegram limitations
 
@@ -106,4 +127,4 @@ Store each observation with product identity, source, seller, observed price, cu
 
 ## Delivery milestones
 
-See IMPLEMENTATION_PLAN.md for phases, acceptance criteria and the proposed PR sequence.
+See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for phases, acceptance criteria and the proposed PR sequence.
