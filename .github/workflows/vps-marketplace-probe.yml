@@ -64,5 +64,7 @@ jobs:
           LIMIT: ${{ inputs.limit }}
         run: |
           set -euo pipefail
+          [[ "$LIMIT" =~ ^([1-9]|[1-4][0-9]|50)$ ]]
+          QUERY_B64="$(printf '%s' "$QUERY" | base64 -w0)"
           ssh -o BatchMode=yes "$VPS_USER@$VPS_HOST" \
-            "python3 /tmp/promo-sniffer-probe.py --query '$QUERY' --limit '$LIMIT'"
+            "QUERY_B64='$QUERY_B64' LIMIT='$LIMIT' bash -lc 'QUERY=\$(printf %s \"\$QUERY_B64\" | base64 -d); exec python3 /tmp/promo-sniffer-probe.py --query \"\$QUERY\" --limit \"\$LIMIT\"'"
