@@ -135,6 +135,18 @@ Use the official Mercado Livre OAuth 2.0 authorization-code flow. Do not paste t
 
 6. Run the workflow promptly. If the token expires, repeat the authorization flow; the probe will report HTTP 401/403 rather than retrying or bypassing the control.
 
+### Approaches intentionally not used
+
+The following alternatives were considered and rejected:
+
+- **Spoofing a browser `User-Agent` to retry the same unauthenticated API request.** The 403 is an authentication/policy rejection (the baseline `/sites/MLB` resource also returns `PA_UNAUTHORIZED_RESULT_FROM_POLICIES`), not a user-agent or bot check. Retrying with a fake browser identity would be an attempt to evade an access control.
+- **Parsing the public search/product HTML, JSON-LD or `__PRELOADED_STATE__`.** This is not an officially supported access method. Using it to replace the blocked API would circumvent the platform's authentication control. The architecture allows HTML collection only where access and terms have been explicitly validated; that is not the case here.
+- **Playwright/headless browser with `navigator.webdriver` masking.** This simulates a browser session and evades anti-bot controls; it is prohibited by this project's collection rules.
+- **Rotating proxies or TLS-fingerprint spoofing.** Prohibited for the same reason.
+- **Third-party aggregators such as GeckoAPI.** These are not official Mercado Livre APIs. They require their own credentials, terms review and coverage validation, and they do not prove that the official source is accessible. They can only be evaluated later as a separate source with explicit owner approval.
+
+The compliant path is an OAuth 2.0 access token from the official Mercado Livre application. If a valid token still returns 403, check the application status, requested scopes, token expiry and, if IP allowlisting is enabled, add the VPS public egress IP. Do not retry a permanent 403 or bypass it with scraping.
+
 ## Shopee — access gate
 
 The research found a Shopee Affiliate Open API surface, including a GraphQL product-offer search, but it is credentialed and affiliate-oriented. It is not evidence of unrestricted marketplace search access or complete coverage of all listings.
