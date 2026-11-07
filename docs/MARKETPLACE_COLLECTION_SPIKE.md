@@ -147,6 +147,16 @@ The following alternatives were considered and rejected:
 
 The compliant path is an OAuth 2.0 access token from the official Mercado Livre application. If a valid token still returns 403, check the application status, requested scopes, token expiry and, if IP allowlisting is enabled, add the VPS public egress IP. Do not retry a permanent 403 or bypass it with scraping.
 
+### Offline parse of a manually saved page
+
+If the owner manually opens a product page in their own browser and saves the HTML, the offline parser can inspect the saved file:
+
+```bash
+python3 scripts/parse_mercadolivre_html.py --input ~/Downloads/onimusha.html
+```
+
+It extracts JSON-LD and `window.__PRELOADED_STATE__` without making network requests, using cookies, impersonating a browser or bypassing an access control. This is a parsing-feasibility check only; it is not automated collection and does not change the source status.
+
 ## Shopee — access gate
 
 The research found a Shopee Affiliate Open API surface, including a GraphQL product-offer search, but it is credentialed and affiliate-oriented. It is not evidence of unrestricted marketplace search access or complete coverage of all listings.
