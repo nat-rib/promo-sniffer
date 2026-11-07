@@ -81,10 +81,56 @@ Use the official Mercado Livre OAuth 2.0 authorization-code flow. Do not paste t
 3. Open the authorization URL for Brazil, sign in with the application owner account and authorize it:
    `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=APP_ID&redirect_uri=REDIRECT_URI`
 4. Exchange the returned `code` for an access token using `POST https://api.mercadolibre.com/oauth/token` with `grant_type=authorization_code`, `client_id`, `client_secret`, `code` and `redirect_uri`, as documented in [Autenticação e Autorização](https://developers.mercadolivre.com.br/pt_br/autenticacao-e-autorizacao).
-5. Store the resulting `access_token` directly in GitHub, without writing it to a file or shell history:
+5. Store the resulting `access_token` directly in GitHub, without writing it to a file, shell history or terminal output. The following prompt reads the client secret and authorization code with hidden input, exchanges the code and sends the token to `gh` over stdin:
 
    ```bash
-   gh secret set MERCADO_LIVRE_ACCESS_TOKEN --repo nat-rib/promo-sniffer
+   python3 - <<'PY'
+   import getpass
+   import json
+   import subprocess
+   import urllib.parse
+   import urllib.request
+
+   app_id = input("Mercado Livre APP ID: ").strip()
+   client_secret = getpass.getpass("Client secret: ")
+   code = getpass.getpass("Authorization code: ")
+   body = urllib.parse.urlencode(
+       {
+           "grant_type": "authorization_code",
+           "client_id": app_id,
+           "client_secret": client_secret,
+           "code": code,
+           "redirect_uri": "https://localhost/callback",
+       }
+   ).encode("utf-8")
+   request = urllib.request.Request(
+       "https://api.mercadolibre.com/oauth/token",
+       data=body,
+       headers={
+           "Accept": "application/json",
+           "Content-Type": "application/x-www-form-urlencoded",
+       },
+   )
+   try:
+       with urllib.request.urlopen(request, timeout=30) as response:
+           token = json.load(response)["access_token"]
+   except Exception as exc:
+       raise SystemExit(f"Token exchange failed: {exc}")
+   subprocess.run(
+       [
+           "gh",
+           "secret",
+           "set",
+           "MERCADO_LIVRE_ACCESS_TOKEN",
+           "--repo",
+           "nat-rib/promo-sniffer",
+       ],
+       input=token,
+       text=True,
+       check=True,
+   )
+   print("Secret updated. The token was not printed.")
+   PY
    ```
 
 6. Run the workflow promptly. If the token expires, repeat the authorization flow; the probe will report HTTP 401/403 rather than retrying or bypassing the control.
