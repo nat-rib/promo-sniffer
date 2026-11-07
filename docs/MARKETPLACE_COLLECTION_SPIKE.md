@@ -72,6 +72,23 @@ The corrected probe reads `MERCADO_LIVRE_ACCESS_TOKEN` (or an `access_token` fie
 
 Mercado Livre access tokens expire (the authorization-code flow documents a 6-hour lifetime, with a rotating refresh token). For this diagnostic spike, the owner must place a currently valid access token in the repository secret before each run. A production collector will need a durable, rotated-token strategy; that is out of scope until source access is confirmed.
 
+### Diagnostic token setup
+
+Use the official Mercado Livre OAuth 2.0 authorization-code flow. Do not paste the client secret or the access token into chat, source files or workflow logs.
+
+1. Create or select an application in the Mercado Livre developer center: <https://developers.mercadolivre.com.br/devcenter>.
+2. Register an exact redirect URI (for example `https://localhost/callback`) and request read access.
+3. Open the authorization URL for Brazil, sign in with the application owner account and authorize it:
+   `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=APP_ID&redirect_uri=REDIRECT_URI`
+4. Exchange the returned `code` for an access token using `POST https://api.mercadolibre.com/oauth/token` with `grant_type=authorization_code`, `client_id`, `client_secret`, `code` and `redirect_uri`, as documented in [Autenticação e Autorização](https://developers.mercadolivre.com.br/pt_br/autenticacao-e-autorizacao).
+5. Store the resulting `access_token` directly in GitHub, without writing it to a file or shell history:
+
+   ```bash
+   gh secret set MERCADO_LIVRE_ACCESS_TOKEN --repo nat-rib/promo-sniffer
+   ```
+
+6. Run the workflow promptly. If the token expires, repeat the authorization flow; the probe will report HTTP 401/403 rather than retrying or bypassing the control.
+
 ## Shopee — access gate
 
 The research found a Shopee Affiliate Open API surface, including a GraphQL product-offer search, but it is credentialed and affiliate-oriented. It is not evidence of unrestricted marketplace search access or complete coverage of all listings.
