@@ -1,0 +1,119 @@
+name: VPS marketplace probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      query:
+        description: Search phrase
+        required: true
+        default: "Onimusha Way of the Sword PS5"
+      limit:
+        description: Maximum listings (1-50)
+        required: true
+        default: "20"
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: vps-marketplace-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    name: Run Mercado Livre probe from VPS
+    if: github.ref == 'refs/heads/feat/marketplace-collection-spike'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out selected branch
+        uses: actions/checkout@v4
+
+      - name: Validate probe inputs
+        env:
+          QUERY: ${{ inputs.query }}
+          LIMIT: ${{ inputs.limit }}
+        run: |
+          set -euo pipefail
+          python3 scripts/probe_mercado_livre.py \
+            --check-inputs \
+            --query "$QUERY" \
+            --limit "$LIMIT"
+
+      - name: Require Mercado Livre access token
+        env:
+          MERCADO_LIVRE_ACCESS_TOKEN: ${{ secrets.MERCADO_LIVRE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$MERCADO_LIVRE_ACCESS_TOKEN" || {
+            echo "::error::Repository secret MERCADO_LIVRE_ACCESS_TOKEN is not set."
+            echo "Create a Mercado Livre application access token and store it as a repository secret."
+            echo "See docs/MARKETPLACE_COLLECTION_SPIKE.md."
+            exit 1
+          }
+
+      - name: Connect runner to private tailnet with OIDC
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OIDC_CLIENT_ID }}
+          audience: ${{ secrets.TS_OIDC_AUDIENCE }}
+          tags: tag:promo-sniffer-ci
+
+      - name: Configure SSH
+        env:
+          VPS_SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Copy probe to VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_TAILSCALE_IP }}
+          VPS_USER: ${{ secrets.VPS_SSH_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_HOST"
+          test -n "$VPS_USER"
+          scp -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -i ~/.ssh/id_ed25519 \
+            scripts/probe_mercado_livre.py \
+            "$VPS_USER@$VPS_HOST:/tmp/promo-sniffer-probe.py"
+
+      - name: Execute probe on VPS (no login/session)
+        env:
+          VPS_HOST: ${{ secrets.VPS_TAILSCALE_IP }}
+          VPS_USER: ${{ secrets.VPS_SSH_USER }}
+          QUERY: ${{ inputs.query }}
+          LIMIT: ${{ inputs.limit }}
+          MERCADO_LIVRE_ACCESS_TOKEN: ${{ secrets.MERCADO_LIVRE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          # The payload travels over stdin. The query and token are never
+          # interpolated into a remote shell command.
+          python3 - <<'PY' | ssh -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -i ~/.ssh/id_ed25519 \
+            "$VPS_USER@$VPS_HOST" \
+            "exec python3 /tmp/promo-sniffer-probe.py --input-json -"
+          import json
+          import os
+          import sys
+
+          json.dump(
+              {
+                  "query": os.environ["QUERY"],
+                  "limit": int(os.environ["LIMIT"]),
+                  "access_token": os.environ["MERCADO_LIVRE_ACCESS_TOKEN"],
+              },
+              sys.stdout,
+          )
+          PY
