@@ -56,6 +56,22 @@ The probe intentionally does not claim the result is a valid match. A later matc
 
 Before scheduled production use, verify current API authentication/rate-limit requirements, item-detail fields, seller reputation lookup and platform terms. Handle 401/403/429 as source-health states, not as reasons to fall back to scraping.
 
+### API authentication finding (2026-11-06)
+
+The first remote run failed with HTTP 403. Direct checks from the development machine and from the VPS produced the same result:
+
+- `GET https://api.mercadolibre.com/sites/MLB/search?q=...` without credentials returned `403` with body `{"message":"forbidden","error":"forbidden","status":403}`.
+- Even the baseline resource `GET https://api.mercadolibre.com/sites/MLB` returned `403` and the policy headers `x-policy-agent-block-code: PA_UNAUTHORIZED_RESULT_FROM_POLICIES` and `x-policy-agent-block-reason: At least one policy returned UNAUTHORIZED`.
+- A deliberately invalid bearer token also returned the same policy 403.
+
+The official Mercado Livre documentation now states that API calls must send an OAuth 2.0 access token in the `Authorization: Bearer ...` header ([Autenticação e Autorização](https://developers.mercadolivre.com.br/pt_br/autenticacao-e-autorizacao)). The probe was calling the correct item-search resource, but it did not send any token. **The 403 was an authentication/policy rejection, not a CAPTCHA, bot challenge or missing endpoint.**
+
+The corrected probe reads `MERCADO_LIVRE_ACCESS_TOKEN` (or an `access_token` field in the stdin JSON payload), sends it only in the HTTP header, and never logs it. If the token is absent, invalid, expired, blocked or lacks the required scope, the probe fails explicitly with a source-health error. It does not retry permanent 401/403 responses and does not fall back to scraping, cookies, proxies or undocumented endpoints.
+
+`/sites/MLB/search` is the official item-search resource used by the probe. The current documentation page highlights seller/nickname/category examples; the free-text `q` filter is the traditional search parameter for the same resource. If Mercado Livre removes `q`, the documented alternative is the catalog product search (`/products/search?status=active&site_id=MLB&q=...`) followed by item lookups for the returned product IDs. That fallback is more expensive and is not implemented until a valid token confirms the need.
+
+Mercado Livre access tokens expire (the authorization-code flow documents a 6-hour lifetime, with a rotating refresh token). For this diagnostic spike, the owner must place a currently valid access token in the repository secret before each run. A production collector will need a durable, rotated-token strategy; that is out of scope until source access is confirmed.
+
 ## Shopee — access gate
 
 The research found a Shopee Affiliate Open API surface, including a GraphQL product-offer search, but it is credentialed and affiliate-oriented. It is not evidence of unrestricted marketplace search access or complete coverage of all listings.
@@ -100,14 +116,25 @@ Configure these repository Actions secrets before running it:
 
 | Secret | Value |
 |---|---|
-| `TS_AUTHKEY` | Tailscale auth key for a short-lived GitHub Actions runner, tagged/authorized by your tailnet ACL |
+| `TS_OIDC_CLIENT_ID` | Tailscale OIDC client ID used by `tailscale/github-action` with GitHub Workload Identity Federation |
+| `TS_OIDC_AUDIENCE` | Tailscale OIDC audience for the GitHub Actions provider |
+| `MERCADO_LIVRE_ACCESS_TOKEN` | Valid Mercado Livre OAuth 2.0 access token with read access. Short-lived; update it before a diagnostic run if it expired |
 | `VPS_TAILSCALE_IP` | Tailscale IPv4 address of the Hetzner VPS |
 | `VPS_SSH_USER` | VPS SSH account (expected: `deploy`) |
 | `VPS_SSH_PRIVATE_KEY` | Dedicated private key for GitHub Actions; its public key must be in the VPS user's `~/.ssh/authorized_keys` |
 | `VPS_SSH_KNOWN_HOSTS` | Verified known_hosts entry for the VPS Tailscale address |
 
-Do not reuse the VPS-to-GitHub read-only deploy key for this direction. Generate a separate key pair for GitHub Actions and add only its public key to the VPS. Do not commit any key or Tailscale auth key.
+Do not reuse the VPS-to-GitHub read-only deploy key for this direction. Generate a separate key pair for GitHub Actions and add only its public key to the VPS. Do not commit any key, Tailscale credential or Mercado Livre token.
 
-After adding secrets, open **Actions → VPS marketplace probe → Run workflow**, select branch `feat/marketplace-collection-spike`, and keep the default Onimusha query. The output is the response observed from the VPS network, with no browser cookies or logged-in marketplace session.
+The workflow validates `query` (non-empty, at most 200 characters, no control characters) and `limit` (integer from 1 to 50) before connecting to the tailnet. It then sends the query, limit and access token to the VPS as a JSON payload over the SSH stdin stream. The values are never interpolated into a remote shell command, so shell metacharacters in the query remain data. The token is not passed as a command-line argument and is not printed.
 
-The workflow has not been executed yet because the required repository secrets and VPS-side SSH authorization must be configured by the owner. A successful run proves outbound API access from the VPS; it does not by itself approve scheduled production collection or establish Shopee access.
+To run it, open **Actions → VPS marketplace probe → Run workflow**, select branch `feat/marketplace-collection-spike`, and keep the default Onimusha query. Alternatively, use `gh workflow run vps-marketplace-probe.yml --repo nat-rib/promo-sniffer --ref feat/marketplace-collection-spike -f query="Onimusha Way of the Sword PS5" -f limit=20`.
+
+A successful run proves both outbound API access from the VPS and a valid authenticated Mercado Livre response. It does not by itself approve scheduled production collection or establish Shopee access.
+
+Local checks do not need a network call:
+
+```bash
+python3 -m pytest -q tests/test_probe_mercado_livre.py
+python3 scripts/probe_mercado_livre.py --check-inputs --query "Onimusha PS5" --limit 20
+```
