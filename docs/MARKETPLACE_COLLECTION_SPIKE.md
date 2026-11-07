@@ -77,7 +77,7 @@ Mercado Livre access tokens expire (the authorization-code flow documents a 6-ho
 Use the official Mercado Livre OAuth 2.0 authorization-code flow. Do not paste the client secret or the access token into chat, source files or workflow logs.
 
 1. Create or select an application in the Mercado Livre developer center: <https://developers.mercadolivre.com.br/devcenter>.
-2. Register an exact redirect URI (for example `https://localhost/callback`) and request read access.
+2. Register an exact redirect URI (for example `https://localhost/callback`) and request read access. Leave PKCE disabled for this manual one-off flow; if PKCE is enabled, the authorization request also needs `code_challenge` and `code_challenge_method`.
 3. Open the authorization URL for Brazil, sign in with the application owner account and authorize it:
    `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=APP_ID&redirect_uri=REDIRECT_URI`
 4. Exchange the returned `code` for an access token using `POST https://api.mercadolibre.com/oauth/token` with `grant_type=authorization_code`, `client_id`, `client_secret`, `code` and `redirect_uri`, as documented in [Autenticação e Autorização](https://developers.mercadolivre.com.br/pt_br/autenticacao-e-autorizacao).
